@@ -1,7 +1,10 @@
 package com.jd.eldritch.socket;
 
-import com.jd.eldritch.model.InputMessage;
-import com.jd.eldritch.model.OutputMessage;
+import com.jd.eldritch.CacheStorage;
+import com.jd.eldritch.socket.message.common.CommonInputMessage;
+import com.jd.eldritch.socket.message.common.CommonOutputMessage;
+import com.jd.eldritch.socket.message.game.InputMessage;
+import com.jd.eldritch.socket.message.game.OutputMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -10,7 +13,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.List;
 
 @Slf4j
 @Controller
@@ -18,12 +20,13 @@ public class SocketController {
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
-    private static final List<String> rooms = List.of("1", "2", "13");
+    @Autowired
+    private CacheStorage storage;
 
     @MessageMapping("/room/{roomId}")
     public void handleGameMessage(Principal principal, InputMessage msg, @DestinationVariable String roomId) {
         try {
-            if (!rooms.contains(roomId)) {
+            if (!storage.getGameList().contains(roomId)) {
                 throw new IllegalArgumentException("Нет такой команты");
             }
             messagingTemplate.convertAndSendToUser(principal.getName(),
@@ -32,22 +35,26 @@ public class SocketController {
         } catch (Exception e) {
             log.error("Exception handled", e);
             messagingTemplate.convertAndSendToUser(principal.getName(),
-                    "/room/null/subscriber",
+                    "/room/null",
                     e.getMessage());
         }
     }
 
-    @MessageMapping("/common/{type}")
-    public void createGame(Principal principal, @DestinationVariable String type) {
-        if ("room_list".equals(type)) {
-            messagingTemplate.convertAndSendToUser(principal.getName(),
-                    "/common",
-                    rooms);
-        } else {
-            messagingTemplate.convertAndSendToUser(principal.getName(),
-                    "/common",
-                    "UnknownType");
+    @MessageMapping("/common")
+    public void createGame(Principal principal, CommonInputMessage msg) {
+        CommonOutputMessage outputMessage = new CommonOutputMessage();
+        outputMessage.setType(msg.getType());
+        if ("room_list".equals(msg.getType())) {
+            outputMessage.setValues(storage.getGameList().toArray(new String[0]));
         }
+        if ("create_room".equals(msg.getType())) {
+            outputMessage.setResult(storage.createGame());
+        } else {
+            outputMessage.setResult("UnknownMsgType");
+        }
+        messagingTemplate.convertAndSendToUser(principal.getName(),
+                "/common",
+                outputMessage);
     }
 
 }

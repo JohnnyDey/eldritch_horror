@@ -1,4 +1,4 @@
-package com.jd.eldritch.model;
+package com.jd.eldritch.socket.message.game;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
