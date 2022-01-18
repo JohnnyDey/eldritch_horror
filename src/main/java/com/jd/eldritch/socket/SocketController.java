@@ -1,6 +1,8 @@
 package com.jd.eldritch.socket;
 
 import com.jd.eldritch.CacheStorage;
+import com.jd.eldritch.model.Game;
+import com.jd.eldritch.resolvers.AbstractResolver;
 import com.jd.eldritch.socket.message.common.CommonInputMessage;
 import com.jd.eldritch.socket.message.common.CommonOutputMessage;
 import com.jd.eldritch.socket.message.game.InputMessage;
@@ -13,6 +15,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.Map;
 
 @Slf4j
 @Controller
@@ -22,20 +25,21 @@ public class SocketController {
     private SimpMessagingTemplate messagingTemplate;
     @Autowired
     private CacheStorage storage;
+    @Autowired
+    private Map<String, AbstractResolver> resolvers;
 
     @MessageMapping("/room/{roomId}")
     public void handleGameMessage(Principal principal, InputMessage msg, @DestinationVariable String roomId) {
         try {
-            if (!storage.getGameList().contains(roomId)) {
-                throw new IllegalArgumentException("Нет такой команты");
-            }
-            messagingTemplate.convertAndSendToUser(principal.getName(),
-                    "/room/null/subscriber",
-                    new OutputMessage("Че ты стучишь в комнату " + roomId + "?))))"));
+            AbstractResolver abstractResolver = resolvers.get(msg.getType());
+            if (abstractResolver == null) throw new IllegalArgumentException("No resolver for type " + msg.getType());
+            Game game = storage.getGame(roomId);
+            if (game == null) throw new IllegalArgumentException("No game with id " + roomId);
+            abstractResolver.resolve(msg, game);
         } catch (Exception e) {
             log.error("Exception handled", e);
             messagingTemplate.convertAndSendToUser(principal.getName(),
-                    "/room/null",
+                    "/room/" + roomId,
                     e.getMessage());
         }
     }

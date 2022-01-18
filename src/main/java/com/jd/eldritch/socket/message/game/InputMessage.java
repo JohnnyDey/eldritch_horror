@@ -6,6 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class InputMessage {
+    String type;
     String senderUid;
     String value;
 }
